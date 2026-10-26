@@ -2,6 +2,8 @@ const TARGET_URL =
   "https://gsk.service-now.com/now/nav/ui/classic/params/target/incident_list.do%3Fsysparm_query%3Dactive%253Dtrue%255EGOTOassignment_group.nameSTARTSWITHGiGi%255Eassigned_toISEMPTY%26sysparm_first_row%3D1%26sysparm_view%3D";
 
 const ALARM_NAME = "reload-ticket-list";
+const ALARM_STOP = "stop-alarm-sound"; // auto-silence timer
+const ALARM_MAX_MINUTES = 3;
 const TAB_KEY = "ticketTabId";
 const MAX_LOGS = 50;
 const MAX_SEEN = 500;
@@ -77,6 +79,7 @@ async function startMonitoring(name) {
 
 async function stopMonitoring(reason = "Monitoring stopped") {
   await chrome.storage.local.set({ running: false });
+  await stopAlarmSound();
   await chrome.alarms.clear(ALARM_NAME);
   await log(reason);
 }
@@ -109,6 +112,12 @@ async function handleScan(tickets, senderTabId) {
   // Save first so the same ticket is never opened twice
   fresh.forEach((t) => seenSet.add(t.number));
   await chrome.storage.local.set({ seen: [...seenSet].slice(-MAX_SEEN) });
+
+  try {
+    await startAlarm(fresh.map((t) => t.number));
+  } catch (e) {
+    await log(`Alarm could not start (${e.message})`);
+  }
 
   const jobs = [];
   for (const t of fresh) {
@@ -219,6 +228,48 @@ async function assignTicket(tabId, number) {
   } catch (e) {
     await log(`${number}: assign error - ${e.message}`);
   }
+}
+
+// ---------- alarm sound (laptop) ----------
+// An offscreen document plays alarm.wav in a loop; closing it stops the sound.
+async function ensureOffscreen() {
+  try {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["AUDIO_PLAYBACK"],
+      justification: "Play an alarm when a new ticket arrives",
+    });
+  } catch (e) {
+    if (!String(e.message).includes("single offscreen")) throw e; // already ringing is fine
+  }
+}
+
+async function startAlarm(numbers) {
+  await withLock(async () => {
+    const { alarmSet = [] } = await chrome.storage.local.get("alarmSet");
+    await chrome.storage.local.set({ alarmSet: [...new Set([...alarmSet, ...numbers])] });
+  });
+  await ensureOffscreen();
+  await chrome.alarms.create(ALARM_STOP, { delayInMinutes: ALARM_MAX_MINUTES });
+}
+
+async function stopAlarmSound() {
+  await withLock(() => chrome.storage.local.set({ alarmSet: [] }));
+  await chrome.alarms.clear(ALARM_STOP);
+  try {
+    await chrome.offscreen.closeDocument();
+  } catch {} // nothing was ringing
+}
+
+// A ticket got its answer - silence only when every waiting ticket is answered
+async function alarmResolve(number) {
+  const remaining = await withLock(async () => {
+    const { alarmSet = [] } = await chrome.storage.local.get("alarmSet");
+    const next = alarmSet.filter((n) => n !== number);
+    await chrome.storage.local.set({ alarmSet: next });
+    return next;
+  });
+  if (!remaining.length) await stopAlarmSound();
 }
 
 // ---------- routing a ticket to another group ----------
@@ -400,6 +451,11 @@ async function sendTest() {
       p.TEST = { ts: Date.now() };
     });
     await log("Test alert sent - tap the button on your phone");
+    try {
+      await startAlarm(["TEST"]);
+    } catch (e) {
+      await log(`Alarm could not start (${e.message})`);
+    }
     startFastPoll();
   } catch (e) {
     await log(`Test alert failed (${e.message})`);
@@ -417,6 +473,8 @@ async function handleReply(text) {
     return entry;
   });
   if (!p) return;
+
+  await alarmResolve(number);
 
   if (number === "TEST") {
     await log("Phone reply received - buttons work");
@@ -499,6 +557,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "STOP") await stopMonitoring();
     if (msg.type === "SCAN") await handleScan(msg.tickets || [], sender.tab && sender.tab.id);
     if (msg.type === "TEST_NTFY") await sendTest();
+    if (msg.type === "STOP_ALARM") await stopAlarmSound();
     if (msg.type === "ENSURE_TOPICS") {
       const t = await ensureTopics();
       sendResponse({ ok: true, topic: t.ntfyTopic });
@@ -511,6 +570,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // ---------- 1-minute reload ----------
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === ALARM_STOP) {
+    await stopAlarmSound();
+    return;
+  }
   if (alarm.name !== ALARM_NAME) return;
   const { running } = await chrome.storage.local.get("running");
   if (!running) return;

@@ -6,10 +6,12 @@ const dot = document.getElementById("dot");
 const statusText = document.getElementById("statusText");
 const logList = document.getElementById("log");
 const clearLink = document.getElementById("clear");
+const stopAlarmBtn = document.getElementById("stopAlarm");
 
-function render({ running, logs }) {
+function render({ running, logs, ringing }) {
   toggleBtn.textContent = running ? "Stop Monitoring" : "Start Monitoring";
   toggleBtn.classList.toggle("stop", running);
+  stopAlarmBtn.hidden = !ringing;
   dot.classList.toggle("on", running);
   statusText.textContent = running ? "Running - reloading every 30 sec" : "Stopped";
 
@@ -34,8 +36,12 @@ function render({ running, logs }) {
 }
 
 async function refresh() {
-  const { running = false, logs = [] } = await chrome.storage.local.get(["running", "logs"]);
-  render({ running, logs });
+  const { running = false, logs = [], alarmSet = [] } = await chrome.storage.local.get([
+    "running",
+    "logs",
+    "alarmSet",
+  ]);
+  render({ running, logs, ringing: alarmSet.length > 0 });
 }
 
 async function init() {
@@ -70,6 +76,10 @@ clearLink.addEventListener("click", async (e) => {
 // Live updates while popup is open
 chrome.storage.onChanged.addListener((_changes, area) => {
   if (area === "local") refresh();
+});
+
+stopAlarmBtn.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "STOP_ALARM" });
 });
 
 // ---- phone alerts (ntfy) ----

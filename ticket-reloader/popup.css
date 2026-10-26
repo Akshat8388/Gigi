@@ -144,3 +144,18 @@ button.small {
   cursor: pointer;
 }
 button.small:hover { border-color: var(--accent); }
+
+.alarm-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.alarm-btn:hover { background: rgba(229, 72, 77, 0.12); }
+.alarm-btn[hidden] { display: none; }

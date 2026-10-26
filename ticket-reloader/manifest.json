@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Ticket Reloader",
-  "version": "5.2",
-  "description": "Reloads the ServiceNow GiGi ticket list, opens new tickets and asks you on your phone (ntfy) whether to assign or route them.",
+  "version": "6.0",
+  "description": "Reloads the ServiceNow GiGi ticket list, rings an alarm for new tickets and asks you on your phone (ntfy) whether to assign or route them.",
   "permissions": [
     "alarms",
     "tabs",
     "storage",
-    "scripting"
+    "scripting",
+    "offscreen"
   ],
   "background": {
     "service_worker": "background.js"
