@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">SN</div>
+    <div>
+      <h1>ServiceNow Ticket Reloader</h1>
+      <p class="sub">GiGi queue watcher</p>
+    </div>
+  </header>
+
+  <main>
+    <label for="name">YOUR NAME</label>
+    <input id="name" type="text" autocomplete="off" />
+
+    <button id="toggle" class="primary">Start Monitoring</button>
+
+    <div class="status">
+      <span id="dot" class="dot"></span>
+      <span id="statusText">Stopped</span>
+    </div>
+
+    <div class="phone">
+      <span class="label">PHONE ALERTS - NTFY TOPIC</span>
+      <div class="topic-row">
+        <input id="topic" type="text" readonly />
+        <button id="copy" class="small">Copy</button>
+        <button id="test" class="small">Test</button>
+      </div>
+    </div>
+
+    <div class="activity-head">
+      <span class="label">ACTIVITY</span>
+      <a id="clear" href="#">Clear</a>
+    </div>
+    <ul id="log"></ul>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
